@@ -138,6 +138,7 @@ impl Guard for FreezeTokenPayment {
                         ctx.accounts.payer.key,
                         freeze_pda.key,
                         token_mint.key,
+                        token_program.key,
                     ),
                     &[
                         ctx.accounts.payer.to_account_info(),
@@ -218,9 +219,9 @@ impl Condition for FreezeTokenPayment {
             return err!(CandyGuardError::FreezeNotInitialized);
         }
 
-        let nft_ata = try_get_account_info(ctx, index + 1)?;
+        // let nft_ata = try_get_account_info(ctx, index + 1)?;
         evaluation_context.account_cursor += 1;
-        assert_is_ata(nft_ata, ctx.accounts.payer.key, ctx.accounts.nft_mint.key)?;
+        // assert_is_ata(nft_ata, ctx.accounts.payer.key, ctx.accounts.nft_mint.key)?;
 
         let token_account_info = try_get_account_info(ctx, index + 2)?;
         // validate freeze_pda ata

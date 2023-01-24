@@ -1,10 +1,10 @@
 use anchor_lang::prelude::*;
-use mpl_candy_machine_core::CandyMachine;
 
 use crate::{
     state::{CandyGuard, CandyGuardData, GuardSet, GuardType, DATA_OFFSET, SEED},
     utils::assert_keys_equal,
 };
+use assetmanager::structs::Asset;
 
 /// Route the transaction to the specified guard. This instruction allows the use of
 /// empty candy guard and candy machine accounts and it is up to individual guard
@@ -35,9 +35,9 @@ pub fn route<'info>(
     let candy_machine_account = if candy_machine.to_account_info().data_is_empty() {
         None
     } else {
-        let account: Account<CandyMachine> = Account::try_from(&candy_machine.to_account_info())?;
+        let account: Account<Asset> = Account::try_from(&candy_machine.to_account_info())?;
         // validates the mint authority
-        assert_keys_equal(&account.mint_authority, &candy_guard.key())?;
+        assert_keys_equal(&account.candy_guard.unwrap(), &candy_guard.key())?;
 
         Some(Box::new(account))
     };
@@ -92,7 +92,7 @@ pub struct RouteContext<'info> {
     /// The candy guard account.
     pub candy_guard: Option<Account<'info, CandyGuard>>,
     /// The candy machine account.
-    pub candy_machine: Option<Box<Account<'info, CandyMachine>>>,
+    pub candy_machine: Option<Box<Account<'info, Asset>>>,
     // The active guard set.
     pub guard_set: Option<Box<GuardSet>>,
 }

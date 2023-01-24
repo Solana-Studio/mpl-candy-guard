@@ -1,20 +1,25 @@
 use std::collections::BTreeMap;
 
 use anchor_lang::{prelude::*, solana_program::sysvar};
-
-use mpl_candy_machine_core::CandyMachine;
+use solana_program::instruction::Instruction;
 
 use crate::{
-    guards::{CandyGuardError, EvaluationContext},
+    guards::EvaluationContext,
     state::{CandyGuard, CandyGuardData, GuardSet, DATA_OFFSET, SEED},
-    utils::cmp_pubkeys,
 };
+
+use assetmanager::structs::Asset;
 
 pub fn mint<'info>(
     ctx: Context<'_, '_, '_, 'info, Mint<'info>>,
     mint_args: Vec<u8>,
     label: Option<String>,
 ) -> Result<()> {
+    let custom_args_len_buf: [u8; 2] = *&mint_args[0..2].try_into().unwrap();
+    let custom_args_len = u16::from_le_bytes(custom_args_len_buf);
+    let custom_args = Vec::from(&mint_args[2..(2 + custom_args_len as usize)]);
+    // let mint_args = Vec::from(&mint_args[(2 + custom_args_len as usize)..]);
+
     let candy_guard = &ctx.accounts.candy_guard;
     let account_info = &candy_guard.to_account_info();
     let account_data = account_info.data.borrow();
@@ -34,7 +39,7 @@ pub fn mint<'info>(
     // evaluation context for this transaction
     let mut evaluation_context = EvaluationContext {
         account_cursor: 0,
-        args_cursor: 0,
+        args_cursor: 2 + custom_args_len as usize,
         indices: BTreeMap::new(),
     };
 
@@ -43,6 +48,7 @@ pub fn mint<'info>(
     if let Err(error) = validate(&ctx) {
         return process_error(&ctx, &guard_set, error);
     }
+    msg!("errors done, {}", evaluation_context.account_cursor);
 
     // validates enabled guards (any error at this point is subject to bot tax)
 
@@ -53,16 +59,16 @@ pub fn mint<'info>(
             return process_error(&ctx, &guard_set, error);
         }
     }
-
+    msg!("validation done, {}", evaluation_context.account_cursor);
     // after this point, errors might occur, which will cause the transaction to fail
     // no bot tax from this point since the actions must be reverted in case of an error
 
     for condition in &conditions {
         condition.pre_actions(&ctx, &mint_args, &guard_set, &mut evaluation_context)?;
     }
-
-    cpi_mint(&ctx)?;
-
+    msg!("pre actions done, {}", evaluation_context.account_cursor);
+    cpi(&ctx, custom_args, &mut evaluation_context)?;
+    msg!("cpi done, {}", evaluation_context.account_cursor);
     for condition in &conditions {
         condition.post_actions(&ctx, &mint_args, &guard_set, &mut evaluation_context)?;
     }
@@ -85,56 +91,96 @@ fn process_error<'info>(
 }
 
 /// Performs a validation of the transaction before executing the guards.
-fn validate<'info>(ctx: &Context<'_, '_, '_, 'info, Mint<'info>>) -> Result<()> {
-    if !cmp_pubkeys(
-        &ctx.accounts.collection_mint.key(),
-        &ctx.accounts.candy_machine.collection_mint,
-    ) {
-        return err!(CandyGuardError::CollectionKeyMismatch);
-    }
-    if !cmp_pubkeys(
-        ctx.accounts.collection_metadata.owner,
-        &mpl_token_metadata::id(),
-    ) {
-        return err!(CandyGuardError::IncorrectOwner);
-    }
+fn validate<'info>(_ctx: &Context<'_, '_, '_, 'info, Mint<'info>>) -> Result<()> {
+    // if !cmp_pubkeys(
+    //     &ctx.accounts.collection_mint.key(),
+    //     &ctx.accounts.candy_machine.collection_mint,
+    // ) {
+    //     return err!(CandyGuardError::CollectionKeyMismatch);
+    // }
+    // if !cmp_pubkeys(
+    //     ctx.accounts.collection_metadata.owner,
+    //     &mpl_token_metadata::id(),
+    // ) {
+    //     return err!(CandyGuardError::IncorrectOwner);
+    // }
 
     Ok(())
 }
 
 /// Send a mint transaction to the candy machine.
-fn cpi_mint<'info>(ctx: &Context<'_, '_, '_, 'info, Mint<'info>>) -> Result<()> {
-    let candy_guard = &ctx.accounts.candy_guard;
+fn cpi<'info>(
+    ctx: &Context<'_, '_, '_, 'info, Mint<'info>>,
+    data: Vec<u8>,
+    _evaluation_context: &mut EvaluationContext,
+) -> Result<()> {
+    let program_id = ctx.accounts.candy_machine_program.key();
+    msg!("program id: {}", program_id);
+    let rem_accounts = &ctx.remaining_accounts[_evaluation_context.account_cursor..];
+    msg!("rem_accounts: {}", rem_accounts.len());
     // PDA signer for the transaction
+    let candy_guard = &ctx.accounts.candy_guard;
     let seeds = [SEED, &candy_guard.base.to_bytes(), &[candy_guard.bump]];
-    let signer = [&seeds[..]];
-    let candy_machine_program = ctx.accounts.candy_machine_program.to_account_info();
+    let signer = &[&seeds[..]];
+    msg!("candy_guard: {}", candy_guard.key());
 
-    // candy machine mint instruction accounts
-    let mint_ix = mpl_candy_machine_core::cpi::accounts::Mint {
-        candy_machine: ctx.accounts.candy_machine.to_account_info(),
-        authority_pda: ctx.accounts.candy_machine_authority_pda.to_account_info(),
-        mint_authority: ctx.accounts.candy_guard.to_account_info(),
-        payer: ctx.accounts.payer.to_account_info(),
-        nft_mint: ctx.accounts.nft_mint.to_account_info(),
-        nft_mint_authority: ctx.accounts.nft_mint_authority.to_account_info(),
-        nft_metadata: ctx.accounts.nft_metadata.to_account_info(),
-        nft_master_edition: ctx.accounts.nft_master_edition.to_account_info(),
-        collection_authority_record: ctx.accounts.collection_authority_record.to_account_info(),
-        collection_mint: ctx.accounts.collection_mint.to_account_info(),
-        collection_metadata: ctx.accounts.collection_metadata.to_account_info(),
-        collection_master_edition: ctx.accounts.collection_master_edition.to_account_info(),
-        collection_update_authority: ctx.accounts.collection_update_authority.to_account_info(),
-        token_metadata_program: ctx.accounts.token_metadata_program.to_account_info(),
-        token_program: ctx.accounts.token_program.to_account_info(),
-        system_program: ctx.accounts.system_program.to_account_info(),
-        recent_slothashes: ctx.accounts.recent_slothashes.to_account_info(),
+    let mut accounts = vec![];
+    rem_accounts.iter().for_each(|account| {
+        let is_signer = account.is_signer || candy_guard.key() == account.key.key();
+        accounts.push(if account.is_writable {
+            AccountMeta::new(account.key.key(), is_signer)
+        } else {
+            AccountMeta::new_readonly(account.key.key(), is_signer)
+        });
+    });
+    msg!("accounts: {}", accounts.len());
+    let mint_ix = Instruction {
+        program_id,
+        accounts,
+        data,
     };
+    msg!(
+        "mint_ix.data: {}, mint_ix.accounts: {}",
+        mint_ix.data.len(),
+        mint_ix.accounts.len()
+    );
 
-    let cpi_ctx = CpiContext::new_with_signer(candy_machine_program, mint_ix, &signer);
-
-    mpl_candy_machine_core::cpi::mint(cpi_ctx)
+    solana_program::program::invoke_signed(&mint_ix, rem_accounts, signer).map_err(Into::into)
 }
+
+// /// Send a mint transaction to the candy machine.
+// fn cpi_mint<'info>(ctx: &Context<'_, '_, '_, 'info, Mint<'info>>) -> Result<()> {
+//     let candy_guard = &ctx.accounts.candy_guard;
+//     // PDA signer for the transaction
+//     let seeds = [SEED, &candy_guard.base.to_bytes(), &[candy_guard.bump]];
+//     let signer = [&seeds[..]];
+//     let candy_machine_program = ctx.accounts.candy_machine_program.to_account_info();
+
+//     // candy machine mint instruction accounts
+//     let mint_ix = mpl_candy_machine_core::cpi::accounts::Mint {
+//         candy_machine: ctx.accounts.candy_machine.to_account_info(),
+//         authority_pda: ctx.accounts.candy_machine_authority_pda.to_account_info(),
+//         mint_authority: ctx.accounts.candy_guard.to_account_info(),
+//         payer: ctx.accounts.payer.to_account_info(),
+//         nft_mint: ctx.accounts.nft_mint.to_account_info(),
+//         nft_mint_authority: ctx.accounts.nft_mint_authority.to_account_info(),
+//         nft_metadata: ctx.accounts.nft_metadata.to_account_info(),
+//         nft_master_edition: ctx.accounts.nft_master_edition.to_account_info(),
+//         collection_authority_record: ctx.accounts.collection_authority_record.to_account_info(),
+//         collection_mint: ctx.accounts.collection_mint.to_account_info(),
+//         collection_metadata: ctx.accounts.collection_metadata.to_account_info(),
+//         collection_master_edition: ctx.accounts.collection_master_edition.to_account_info(),
+//         collection_update_authority: ctx.accounts.collection_update_authority.to_account_info(),
+//         token_metadata_program: ctx.accounts.token_metadata_program.to_account_info(),
+//         token_program: ctx.accounts.token_program.to_account_info(),
+//         system_program: ctx.accounts.system_program.to_account_info(),
+//         recent_slothashes: ctx.accounts.recent_slothashes.to_account_info(),
+//     };
+
+//     let cpi_ctx = CpiContext::new_with_signer(candy_machine_program, mint_ix, &signer);
+
+//     mpl_candy_machine_core::cpi::mint(cpi_ctx)
+// }
 
 #[derive(Debug, Clone)]
 pub struct Token;
@@ -153,51 +199,18 @@ pub struct Mint<'info> {
     )]
     pub candy_guard: Account<'info, CandyGuard>,
     /// CHECK: account constraints checked in account trait
-    #[account(address = mpl_candy_machine_core::id())]
+    #[account(address = assetmanager::id())]
     pub candy_machine_program: AccountInfo<'info>,
     #[account(
         mut,
-        constraint = candy_guard.key() == candy_machine.mint_authority
+        constraint = candy_guard.key() == candy_machine.candy_guard.unwrap()
     )]
-    pub candy_machine: Box<Account<'info, CandyMachine>>,
-    // seeds and bump are not validated by the candy guard, they will be validated
-    // by the CPI'd candy machine mint instruction
-    /// CHECK: account constraints checked in account trait
-    #[account(mut)]
-    pub candy_machine_authority_pda: UncheckedAccount<'info>,
+    pub candy_machine: Box<Account<'info, Asset>>,
     #[account(mut)]
     pub payer: Signer<'info>,
-    // with the following accounts we aren't using anchor macros because they are CPI'd
-    // through to token-metadata which will do all the validations we need on them.
-    /// CHECK: account checked in CPI
-    #[account(mut)]
-    pub nft_metadata: UncheckedAccount<'info>,
-    /// CHECK: account checked in CPI
-    #[account(mut)]
-    pub nft_mint: UncheckedAccount<'info>,
-    pub nft_mint_authority: Signer<'info>,
-    /// CHECK: account checked in CPI
-    #[account(mut)]
-    pub nft_master_edition: UncheckedAccount<'info>,
-    /// CHECK: account checked in CPI
-    pub collection_authority_record: UncheckedAccount<'info>,
-    /// CHECK: account checked in CPI
-    pub collection_mint: UncheckedAccount<'info>,
-    /// CHECK: account checked in CPI
-    #[account(mut)]
-    pub collection_metadata: UncheckedAccount<'info>,
-    /// CHECK: account checked in CPI
-    pub collection_master_edition: UncheckedAccount<'info>,
-    /// CHECK: account checked in CPI
-    pub collection_update_authority: UncheckedAccount<'info>,
-    /// CHECK: account checked in CPI
-    #[account(address = mpl_token_metadata::id())]
-    pub token_metadata_program: UncheckedAccount<'info>,
+
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
-    /// CHECK: account constraints checked in account trait
-    #[account(address = sysvar::slot_hashes::id())]
-    pub recent_slothashes: UncheckedAccount<'info>,
     /// CHECK: account constraints checked in account trait
     #[account(address = sysvar::instructions::id())]
     pub instruction_sysvar_account: UncheckedAccount<'info>,

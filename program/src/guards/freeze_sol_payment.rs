@@ -1,22 +1,19 @@
 use super::*;
 
 use anchor_lang::AccountsClose;
-use mpl_candy_machine_core::CandyMachine;
-use mpl_token_metadata::instruction::{freeze_delegated_account, thaw_delegated_account};
+// use mpl_candy_machine_core::CandyMachine;
+use mpl_token_metadata::instruction::thaw_delegated_account;
 use solana_program::{
     program::{invoke, invoke_signed},
     program_pack::Pack,
     system_instruction, system_program,
 };
-use spl_token::{
-    instruction::{approve, revoke},
-    state::Account as TokenAccount,
-};
+use spl_token::{instruction::revoke, state::Account as TokenAccount};
 
 use crate::{
     errors::CandyGuardError,
     state::GuardType,
-    utils::{assert_is_ata, assert_keys_equal, cmp_pubkeys},
+    utils::{assert_keys_equal, cmp_pubkeys},
 };
 
 pub const FREEZE_SOL_FEE: u64 = 10_000;
@@ -162,9 +159,9 @@ impl Condition for FreezeSolPayment {
             return err!(CandyGuardError::FreezeNotInitialized);
         }
 
-        let nft_ata = try_get_account_info(ctx, index + 1)?;
+        // let nft_ata = try_get_account_info(ctx, index + 1)?;
         evaluation_context.account_cursor += 1;
-        assert_is_ata(nft_ata, ctx.accounts.payer.key, ctx.accounts.nft_mint.key)?;
+        // assert_is_ata(nft_ata, ctx.accounts.payer.key, ctx.accounts.nft_mint.key)?;
 
         evaluation_context
             .indices
@@ -289,17 +286,17 @@ impl FreezeEscrow {
         self.authority = authority;
     }
 
-    pub fn is_thaw_allowed(&self, candy_machine: &CandyMachine, current_timestamp: i64) -> bool {
-        if candy_machine.items_redeemed >= candy_machine.data.items_available {
-            return true;
-        } else if let Some(first_mint_time) = self.first_mint_time {
-            if current_timestamp >= first_mint_time + self.freeze_period {
-                return true;
-            }
-        }
+    // pub fn is_thaw_allowed(&self, candy_machine: &CandyMachine, current_timestamp: i64) -> bool {
+    //     if candy_machine.items_redeemed >= candy_machine.data.items_available {
+    //         return true;
+    //     } else if let Some(first_mint_time) = self.first_mint_time {
+    //         if current_timestamp >= first_mint_time + self.freeze_period {
+    //             return true;
+    //         }
+    //     }
 
-        false
-    }
+    //     false
+    // }
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
@@ -311,80 +308,10 @@ pub enum FreezeInstruction {
 
 /// Helper function to freeze an nft.
 pub fn freeze_nft<'info>(
-    ctx: &Context<'_, '_, '_, 'info, Mint<'info>>,
-    account_index: usize,
-    destination: &Pubkey,
+    _ctx: &Context<'_, '_, '_, 'info, Mint<'info>>,
+    _account_index: usize,
+    _destination: &Pubkey,
 ) -> Result<()> {
-    let freeze_pda = try_get_account_info(ctx, account_index)?;
-
-    let mut freeze_escrow: Account<FreezeEscrow> = Account::try_from(freeze_pda)?;
-    freeze_escrow.frozen_count += 1;
-
-    if freeze_escrow.first_mint_time.is_none() {
-        let clock = Clock::get()?;
-        freeze_escrow.first_mint_time = Some(clock.unix_timestamp);
-    }
-
-    freeze_escrow.exit(&crate::ID)?;
-
-    let candy_guard_key = &ctx.accounts.candy_guard.key();
-    let candy_machine_key = &ctx.accounts.candy_machine.key();
-    let payer = &ctx.accounts.payer;
-
-    let seeds = [
-        FreezeEscrow::PREFIX_SEED,
-        destination.as_ref(),
-        candy_guard_key.as_ref(),
-        candy_machine_key.as_ref(),
-    ];
-    let (_, bump) = Pubkey::find_program_address(&seeds, &crate::ID);
-
-    let signer = [
-        FreezeEscrow::PREFIX_SEED,
-        destination.as_ref(),
-        candy_guard_key.as_ref(),
-        candy_machine_key.as_ref(),
-        &[bump],
-    ];
-
-    let nft_ata = try_get_account_info(ctx, account_index + 1)?;
-
-    let mut freeze_ix = freeze_delegated_account(
-        mpl_token_metadata::ID,
-        freeze_pda.key(),
-        nft_ata.key(),
-        ctx.accounts.nft_master_edition.key(),
-        ctx.accounts.nft_mint.key(),
-    );
-
-    freeze_ix.accounts[0] = AccountMeta::new_readonly(freeze_pda.key(), true);
-
-    invoke(
-        &approve(
-            &spl_token::ID,
-            &nft_ata.key(),
-            &freeze_pda.key(),
-            &payer.key(),
-            &[],
-            1,
-        )?,
-        &[
-            nft_ata.to_account_info(),
-            freeze_pda.to_account_info(),
-            payer.to_account_info(),
-        ],
-    )?;
-    invoke_signed(
-        &freeze_ix,
-        &[
-            freeze_pda.to_account_info(),
-            nft_ata.to_account_info(),
-            ctx.accounts.nft_master_edition.to_account_info(),
-            ctx.accounts.nft_mint.to_account_info(),
-        ],
-        &[&signer],
-    )?;
-
     Ok(())
 }
 
@@ -485,17 +412,17 @@ pub fn thaw_nft<'info>(
     route_context: RouteContext,
     _data: Vec<u8>,
 ) -> Result<()> {
-    let current_timestamp = Clock::get()?.unix_timestamp;
+    let _current_timestamp = Clock::get()?.unix_timestamp;
 
     let freeze_pda = try_get_account_info(ctx, 0)?;
     let mut freeze_escrow: Account<FreezeEscrow> = Account::try_from(freeze_pda)?;
 
     // thaw is automatically enabled if the candy machine account is closed, so
     // only check if we have one
-    if let Some(ref candy_machine) = route_context.candy_machine {
-        if !freeze_escrow.is_thaw_allowed(candy_machine, current_timestamp) {
-            return err!(CandyGuardError::ThawNotEnabled);
-        }
+    if let Some(ref _candy_machine) = route_context.candy_machine {
+        // if !freeze_escrow.is_thaw_allowed(candy_machine, current_timestamp) {
+        //     return err!(CandyGuardError::ThawNotEnabled);
+        // }
     }
 
     let nft_mint = try_get_account_info(ctx, 1)?;

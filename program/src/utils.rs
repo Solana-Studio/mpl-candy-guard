@@ -92,6 +92,7 @@ pub fn assert_is_token_account(
 
 pub fn assert_keys_equal(key1: &Pubkey, key2: &Pubkey) -> Result<()> {
     if !cmp_pubkeys(key1, key2) {
+        msg!("assert_keys_equal: Left {:?} Right {:?}", key1, key2);
         err!(CandyGuardError::PublicKeyMismatch)
     } else {
         Ok(())

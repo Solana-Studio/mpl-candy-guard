@@ -8,7 +8,7 @@ pub mod instructions;
 pub mod state;
 pub mod utils;
 
-declare_id!("Guard1JwRhJkVH6XZhzoYxeBVQe872VH6QggF4BWmS9g");
+declare_id!("FhCHXHuD6r2iCGwHgqcgnDbwXprLf22pZcArSp4Si4n7");
 
 #[program]
 pub mod candy_guard {
@@ -42,12 +42,6 @@ pub mod candy_guard {
         instructions::set_authority(ctx, new_authority)
     }
 
-    /// Remove a candy guard from a candy machine, setting the authority to the
-    /// candy guard authority.
-    pub fn unwrap(ctx: Context<Unwrap>) -> Result<()> {
-        instructions::unwrap(ctx)
-    }
-
     /// Update the candy guard configuration.
     pub fn update(ctx: Context<Update>, data: Vec<u8>) -> Result<()> {
         instructions::update(ctx, data)
@@ -56,11 +50,5 @@ pub mod candy_guard {
     /// Withdraw the rent SOL from the candy guard account.
     pub fn withdraw(ctx: Context<Withdraw>) -> Result<()> {
         instructions::withdraw(ctx)
-    }
-
-    /// Add a candy guard to a candy machine. After the guard is added, mint
-    /// is only allowed through the candy guard.
-    pub fn wrap(ctx: Context<Wrap>) -> Result<()> {
-        instructions::wrap(ctx)
     }
 }

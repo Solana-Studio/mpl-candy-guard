@@ -110,6 +110,7 @@ impl Condition for NftPayment {
                 ctx.accounts.payer.key,
                 &self.destination,
                 nft_mint.key,
+                ctx.accounts.token_program.key,
             ),
             &[
                 ctx.accounts.payer.to_account_info(),

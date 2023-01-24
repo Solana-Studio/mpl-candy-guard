@@ -1,5 +1,5 @@
 {
-  "version": "0.2.0",
+  "version": "0.2.1",
   "name": "candy_guard",
   "instructions": [
     {
@@ -63,64 +63,9 @@
           "isSigner": false
         },
         {
-          "name": "candyMachineAuthorityPda",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
           "name": "payer",
           "isMut": true,
           "isSigner": true
-        },
-        {
-          "name": "nftMetadata",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "nftMint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "nftMintAuthority",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "nftMasterEdition",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "collectionAuthorityRecord",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "collectionMint",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "collectionMetadata",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "collectionMasterEdition",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "collectionUpdateAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMetadataProgram",
-          "isMut": false,
-          "isSigner": false
         },
         {
           "name": "tokenProgram",
@@ -129,11 +74,6 @@
         },
         {
           "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "recentSlothashes",
           "isMut": false,
           "isSigner": false
         },
@@ -218,41 +158,6 @@
       ]
     },
     {
-      "name": "unwrap",
-      "docs": [
-        "Remove a candy guard from a candy machine, setting the authority to the",
-        "candy guard authority."
-      ],
-      "accounts": [
-        {
-          "name": "candyGuard",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "candyMachine",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "candyMachineAuthority",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "candyMachineProgram",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "update",
       "docs": [
         "Update the candy guard configuration."
@@ -300,41 +205,6 @@
         {
           "name": "authority",
           "isMut": true,
-          "isSigner": true
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "wrap",
-      "docs": [
-        "Add a candy guard to a candy machine. After the guard is added, mint",
-        "is only allowed through the candy guard."
-      ],
-      "accounts": [
-        {
-          "name": "candyGuard",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "candyMachine",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "candyMachineProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "candyMachineAuthority",
-          "isMut": false,
           "isSigner": true
         }
       ],
@@ -1592,9 +1462,9 @@
     }
   ],
   "metadata": {
-    "address": "Guard1JwRhJkVH6XZhzoYxeBVQe872VH6QggF4BWmS9g",
+    "address": "FhCHXHuD6r2iCGwHgqcgnDbwXprLf22pZcArSp4Si4n7",
     "origin": "anchor",
-    "binaryVersion": "0.25.0",
-    "libVersion": "0.25.0"
+    "binaryVersion": "0.26.0",
+    "libVersion": "0.26.0"
   }
 }
